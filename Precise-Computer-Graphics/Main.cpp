@@ -1,338 +1,254 @@
-#include"imgui.h"
-#include"imgui_impl_glfw.h"
-#include"imgui_impl_opengl3.h"
- 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
-#include<iostream>
-#include<glad/glad.h>
-#include<GLFW/glfw3.h>
+#include <iostream>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <vector>
+#include "Shader.h"
+#include "Camera.h"
+#include "Renderer.h"
 
-const char* vertexShaderSource = R"glsl(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aColor;
+// Globalne zmienne
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+Renderer renderer;
 
-out vec3 ourColor;
+// Ustawienia okna
+const unsigned int SCR_WIDTH = 1200;
+const unsigned int SCR_HEIGHT = 800;
 
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
+// Timing
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
 
-void main()
-{
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    ourColor = aColor;
-}
-
-)glsl";
-
-const char* fragmentShaderSource = R"glsl(
-#version 330 core
-in vec3 ourColor;
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vec4(ourColor, 1.0);
-}
-)glsl";
-
-
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-glm::vec3 cameraOffset(0.0f, 0.0f, 0.0f);
-
-
-float yaw = -90.0f, pitch = 0.0f;
-float lastX = 400, lastY = 300;
+// Mouse input
 bool firstMouse = true;
-float fov = 45.0f;
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
 
+// Mouse states
+bool middleMousePressed = false;
+bool rightMousePressed = false;
+bool gizmoInteraction = false;
 
-float axisVertices[] = {
-	// X axis (red)
-	0.0f, 0.0f, 0.0f,   1.0f, 0.0f, 0.0f,
-	1.0f, 0.0f, 0.0f,   1.0f, 0.0f, 0.0f,
+// Gizmo settings
+const float GIZMO_SIZE = 100.0f;
+const float GIZMO_MARGIN = 20.0f;
 
-	// Y axis (green)
-	0.0f, 0.0f, 0.0f,   0.0f, 1.0f, 0.0f,
-	0.0f, 1.0f, 0.0f,   0.0f, 1.0f, 0.0f,
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void processInput(GLFWwindow* window);
+bool isMouseOverGizmo(double mouseX, double mouseY);
 
-	// Z axis (blue)
-	0.0f, 0.0f, 0.0f,   0.0f, 0.0f, 1.0f,
-	0.0f, 0.0f, 1.0f,   0.0f, 0.0f, 1.0f,
-};
+int main() {
+    // Inicjalizacja GLFW
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+    // Utworzenie okna
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL 3D Viewer", NULL, NULL);
+    if (window == NULL) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
 
+    // Ustawienie callback'ów
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
+    // Inicjalizacja GLAD
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
 
-void processInput(GLFWwindow* window, float deltaTime)
-{
-	float cameraSpeed = 2.5f * deltaTime;
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		cameraPos += cameraSpeed * cameraFront;
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		cameraPos -= cameraSpeed * cameraFront;
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    // Konfiguracja OpenGL
+    glEnable(GL_DEPTH_TEST);
+    glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+
+    // Inicjalizacja renderera
+    renderer.initialize();
+
+    // Inicjalizacja ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
+    // G³ówna pêtla renderowania
+    while (!glfwWindowShouldClose(window)) {
+        // Timing
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        // Input
+        processInput(window);
+
+        // Render
+        glClearColor(0.12f, 0.13f, 0.13f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Renderowanie sceny
+        renderer.render(camera, (float)SCR_WIDTH / (float)SCR_HEIGHT);
+
+        // Renderowanie gizmo w prawym górnym rogu
+        float gizmoX = SCR_WIDTH - GIZMO_SIZE - GIZMO_MARGIN;
+        float gizmoY = SCR_HEIGHT - GIZMO_SIZE - GIZMO_MARGIN;
+        renderer.renderGizmo(camera, gizmoX, gizmoY, GIZMO_SIZE);
+
+        // ImGui
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // Panel kontrolny
+        ImGui::Begin("Kontrola kamery");
+        ImGui::Text("FPS: %.1f", 1.0f / deltaTime);
+        ImGui::Separator();
+
+        ImGui::Text("Sterowanie:");
+        ImGui::BulletText("WASD - ruch kamery");
+        ImGui::BulletText("Œrodkowy przycisk myszy - przesuwanie");
+        ImGui::BulletText("Prawy przycisk myszy - obracanie kamery");
+        ImGui::BulletText("Kostka w rogu - obracanie sceny");
+        ImGui::BulletText("Scroll - zoom");
+
+        ImGui::Separator();
+        ImGui::Text("Pozycja kamery: %.2f, %.2f, %.2f",
+            camera.position.x, camera.position.y, camera.position.z);
+        ImGui::Text("FOV: %.1f", camera.zoom);
+
+        if (ImGui::Button("Reset kamery")) {
+            camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f));
+        }
+
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Swap buffers i poll events
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    renderer.cleanup();
+    glfwTerminate();
+    return 0;
 }
 
-void mouse_callback(GLFWwindow* window, double xpos, double ypos)
-{
-	static bool dragging = false;
-	static float lastX = 0, lastY = 0;
-
-	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS)
-	{
-		if (!dragging)
-		{
-			dragging = true;
-			lastX = xpos;
-			lastY = ypos;
-			return;
-		}
-
-		float xoffset = xpos - lastX;
-		float yoffset = ypos - lastY;
-
-		lastX = xpos;
-		lastY = ypos;
-
-		float sensitivity = 0.005f;
-
-		// Przesuwaj scenê w kierunku X/Y kamery
-		cameraOffset -= glm::vec3(xoffset * sensitivity, -yoffset * sensitivity, 0.0f);
-	}
-	else
-	{
-		dragging = false;
-	}
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
 }
 
-std::vector<float> generateGrid(int halfSize, float spacing = 1.0f) {
-	std::vector<float> vertices;
+void processInput(GLFWwindow* window) {
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
-	for (int i = -halfSize; i <= halfSize; ++i) {
-		float coord = i * spacing;
-
-		// linie równoleg³e do X
-		vertices.insert(vertices.end(), {
-			-halfSize * spacing, 0.0f, coord,  0.5f, 0.5f, 0.5f,
-			 halfSize * spacing, 0.0f, coord,  0.5f, 0.5f, 0.5f
-			});
-
-		// linie równoleg³e do Z
-		vertices.insert(vertices.end(), {
-			coord, 0.0f, -halfSize * spacing,  0.5f, 0.5f, 0.5f,
-			coord, 0.0f,  halfSize * spacing,  0.5f, 0.5f, 0.5f
-			});
-	}
-
-	return vertices;
+    // Sterowanie kamer¹ WASD
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.processKeyboard(0, deltaTime); // FORWARD
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.processKeyboard(1, deltaTime); // BACKWARD
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.processKeyboard(2, deltaTime); // LEFT
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.processKeyboard(3, deltaTime); // RIGHT
 }
 
+bool isMouseOverGizmo(double mouseX, double mouseY) {
+    float gizmoX = SCR_WIDTH - GIZMO_SIZE - GIZMO_MARGIN;
+    float gizmoY = SCR_HEIGHT - GIZMO_SIZE - GIZMO_MARGIN;
 
+    // Konwersja wspó³rzêdnych myszy (GLFW u¿ywa lewego górnego rogu, OpenGL lewego dolnego)
+    double oglMouseY = SCR_HEIGHT - mouseY;
 
-int main()
-{
-	glfwInit();
+    return (mouseX >= gizmoX && mouseX <= gizmoX + GIZMO_SIZE &&
+        oglMouseY >= gizmoY && oglMouseY <= gizmoY + GIZMO_SIZE);
+}
 
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    double mouseX, mouseY;
+    glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	GLfloat vertices[] = {
-		-0.5f, -0.5f * float(sqrt(3)), 0.0f, // Bottom Left
-		 0.5f, -0.5f * float(sqrt(3)), 0.0f, // Bottom Right
-		 0.0f,  0.5f * float(sqrt(3)) * 2/3, 0.0f  // Top
-	};
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+        if (action == GLFW_PRESS) {
+            middleMousePressed = true;
+            lastX = mouseX;
+            lastY = mouseY;
+        }
+        else if (action == GLFW_RELEASE) {
+            middleMousePressed = false;
+        }
+    }
 
-	GLFWwindow* window = glfwCreateWindow(800, 600, "OpenGL Demo", NULL, NULL);
-	if (window == NULL) {
-		std::cout << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (action == GLFW_PRESS) {
+            rightMousePressed = true;
+            gizmoInteraction = isMouseOverGizmo(mouseX, mouseY);
+            lastX = mouseX;
+            lastY = mouseY;
 
-	gladLoadGL();
+            if (!gizmoInteraction) {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+        }
+        else if (action == GLFW_RELEASE) {
+            rightMousePressed = false;
+            gizmoInteraction = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+    }
+}
 
-	glViewport(0, 0, 800, 600);
-	glEnable(GL_DEPTH_TEST);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (firstMouse) {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
 
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // Odwrócone, bo wspó³rzêdne y id¹ od do³u do góry
 
-	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-	glCompileShader(vertexShader);
+    lastX = xpos;
+    lastY = ypos;
 
-	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-	glCompileShader(fragmentShader);
+    // Œrodkowy przycisk myszy - przesuwanie
+    if (middleMousePressed) {
+        camera.processMousePan(xoffset, yoffset);
+    }
 
+    // Prawy przycisk myszy
+    if (rightMousePressed) {
+        if (gizmoInteraction) {
+            // Obracanie sceny przez gizmo
+            camera.rotateScene(xoffset, yoffset);
+        }
+        else {
+            // Obracanie kamery
+            camera.processMouseMovement(xoffset, yoffset);
+        }
+    }
+}
 
-	GLuint shaderProgram = glCreateProgram();
-	glAttachShader(shaderProgram, vertexShader);
-	glAttachShader(shaderProgram, fragmentShader);
-
-	glLinkProgram(shaderProgram);
-
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
-
-
-	GLuint VBO, VAO;
-
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-	
-	glClearColor(0.12f, 0.13f, 0.13f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	//
-	GLuint axisVAO, axisVBO;
-	glGenVertexArrays(1, &axisVAO);
-	glGenBuffers(1, &axisVBO);
-
-	glBindVertexArray(axisVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, axisVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(axisVertices), axisVertices, GL_STATIC_DRAW);
-
-	// pozycja
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// kolor
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-	std::vector<float> gridVertices = generateGrid(20); // 41 linii w ka¿d¹ stronê
-
-	GLuint gridVAO, gridVBO;
-	glGenVertexArrays(1, &gridVAO);
-	glGenBuffers(1, &gridVBO);
-
-	glBindVertexArray(gridVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
-	glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(float), gridVertices.data(), GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-
-
-	glfwSwapBuffers(window);
-
-
-	
-	glfwSetCursorPosCallback(window, mouse_callback);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-
-
-	float deltaTime = 0.0f;
-	float lastFrame = 0.0f;
-
-
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	ImGui::StyleColorsDark();
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 330 core");
-
-
-	
-
-	while (!glfwWindowShouldClose(window))
-	{
-		float currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
-		lastFrame = currentFrame;
-
-		processInput(window, deltaTime);
-
-		// === Poprawna kolejnoœæ ===
-		glClearColor(0.12f, 0.13f, 0.13f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-
-
-
-		// Matryce
-		glm::mat4 model = glm::mat4(1.0f);
-		glm::mat4 view = glm::lookAt(cameraPos + cameraOffset, cameraPos + cameraOffset + cameraFront, cameraUp);
-		glm::mat4 projection = glm::perspective(glm::radians(fov), 800.0f / 600.0f, 0.1f, 100.0f);
-
-		// Za³aduj do shaderów
-		glUseProgram(shaderProgram);
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
-		// Rysuj siatkê
-		glBindVertexArray(gridVAO);
-		glDrawArrays(GL_LINES, 0, gridVertices.size() / 6);
-
-		// Rysuj osie
-		glBindVertexArray(axisVAO);
-		glDrawArrays(GL_LINES, 0, 6);
-
-		// Rysuj trójk¹t
-		glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-
-		ImGui::Begin("Test");
-		ImGui::Text("Hell word!");
-
-		ImGui::End();
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-
-		glfwSwapBuffers(window);
-		glfwPollEvents();
-
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, true);
-	}
-
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-
-	glDeleteBuffers(1, &VBO);
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteProgram(shaderProgram);
-	glfwDestroyWindow(window);
-	glfwTerminate();
-	return 0;
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    camera.processMouseScroll(static_cast<float>(yoffset));
 }

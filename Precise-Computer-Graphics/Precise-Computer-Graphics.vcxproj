@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="glad.c" />
     <ClCompile Include="Libraries\include\imgui\imgui.cpp" />
     <ClCompile Include="Libraries\include\imgui\imgui_demo.cpp" />
@@ -144,8 +145,11 @@
     <ClCompile Include="Libraries\include\imgui\imgui_tables.cpp" />
     <ClCompile Include="Libraries\include\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="Libraries\include\imgui\imconfig.h" />
     <ClInclude Include="Libraries\include\imgui\imgui.h" />
     <ClInclude Include="Libraries\include\imgui\imgui_impl_glfw.h" />
@@ -155,6 +159,8 @@
     <ClInclude Include="Libraries\include\imgui\imstb_rectpack.h" />
     <ClInclude Include="Libraries\include\imgui\imstb_textedit.h" />
     <ClInclude Include="Libraries\include\imgui\imstb_truetype.h" />
+    <ClInclude Include="Renderer.h" />
+    <ClInclude Include="Shader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
