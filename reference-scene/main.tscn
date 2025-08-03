@@ -1,0 +1,28 @@
+[gd_scene load_steps=3 format=3 uid="uid://ciq5y1cyrbwro"]
+
+[ext_resource type="Script" uid="uid://t11bnwmoirw0" path="res://main.gd" id="1_ig7tw"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_0xm2m"]
+size = Vector2(100, 100)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_ig7tw")
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+
+[node name="Grid" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_0xm2m")
+
+[node name="GizmoViewPort" type="SubViewport" parent="."]
+
+[node name="GizmoScene" type="Node3D" parent="GizmoViewPort"]
+
+[node name="Camera3D" type="Camera3D" parent="GizmoViewPort/GizmoScene"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="GizmoViewPort/GizmoScene"]
+
+[node name="TextureRect" type="TextureRect" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0

@@ -1,0 +1,62 @@
+[gd_scene load_steps=9 format=3 uid="uid://cjbvjlvspki6o"]
+
+[ext_resource type="Script" uid="uid://vhsqlod37hxa" path="res://main.gd" id="1_ig7tw"]
+[ext_resource type="Script" uid="uid://cq7mgtoub7dkp" path="res://camera.gd" id="2_0xm2m"]
+[ext_resource type="Texture2D" uid="uid://dlxntxncn347h" path="res://asstes/drawing.png" id="2_h2yge"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_lquwl"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1bvp3"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0xm2m"]
+atlas = ExtResource("2_h2yge")
+region = Rect2(113, 58, 97, 120)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_h2yge"]
+atlas = ExtResource("2_h2yge")
+region = Rect2(337, 54, 133, 134)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1bvp3"]
+atlas = ExtResource("2_h2yge")
+region = Rect2(608, 53, 149, 145)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_ig7tw")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.865606, 0.500725, 0, -0.500725, 0.865606, 0, 1.31316, 0)
+script = ExtResource("2_0xm2m")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("ShaderMaterial_lquwl")
+mesh = SubResource("PlaneMesh_1bvp3")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="Control" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/Control"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="StartSketchButton" type="Button" parent="CanvasLayer/Control/HBoxContainer"]
+layout_mode = 2
+text = "Sketch"
+
+[node name="LineButton" type="Button" parent="CanvasLayer/Control/HBoxContainer"]
+layout_mode = 2
+icon = SubResource("AtlasTexture_0xm2m")
+
+[node name="CirlceButton" type="Button" parent="CanvasLayer/Control/HBoxContainer"]
+layout_mode = 2
+icon = SubResource("AtlasTexture_h2yge")
+
+[node name="SquareButton" type="Button" parent="CanvasLayer/Control/HBoxContainer"]
+layout_mode = 2
+icon = SubResource("AtlasTexture_1bvp3")
